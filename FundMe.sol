@@ -2,28 +2,29 @@
 
 pragma solidity ^0.8.18;
 
-// import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import {PriceConverter} from "./PriceConverter.sol";
+
+error NotOwner();
 
 contract FundMe {
-    uint256 minimumUSD = 5;
+    using PriceConverter for uint256;
+
+    uint256 public constant MINIMUM_USD = 50*1e18;
 
     address[] public funders;
 
     mapping(address funder => uint256 amountFunded) public addressToAmountFunded;
 
-    address public owner;
+    address public immutable i_owner;
 
-    modifier onlyOwner {
-        require(msg.sender == owner, "Send is not owner");
-        _;
-    }
+    
 
     constructor() {
-        owner = msg.sender;
+        i_owner = msg.sender;
     }
 
     function fund() public payable {
-        require(msg.value > minimumUSD, "Didn't send enough ETH");
+        require(msg.value.getConversionRate() > MINIMUM_USD, "Didn't send enough ETH");
         funders.push(msg.sender);
         addressToAmountFunded[msg.sender] += msg.value;
     }
@@ -38,7 +39,37 @@ contract FundMe {
         }
         funders = new address[](0);
 
-        (bool callSuccess, ) = payable(msg.sender).call{value: address(this).balance}("");
+        // //transfer 
+        // //If transfer fails then throws error
+        // payable(msg.sender).transfer(address(this).balance);
+
+        // //send
+        // //If send fails and return boolean flag
+        // bool sendSuccess = payable(msg.sender).send(address(this).balance);
+        // require(sendSuccess, "Send Failed");
+
+        //call
+        //Lower Level Command, call and call other functions from contract
+        //Here we do not wanna call any other function thats why leave empty string.
+        //call function is used as a transaction, thats why there is value in {}
+        (bool callSuccess,) = payable(msg.sender).call{value: address(this).balance}("");
         require(callSuccess, "Call Failed");
     }
+
+    modifier onlyOwner {
+        // require(msg.sender == i_owner, "Send is not owner");
+        if(msg.sender != i_owner) { revert NotOwner(); }
+        _;
+    }
+
+    //What happens if someone 
+
+    receive() external payable {
+        fund();
+    }
+
+    fallback() external payable {
+        fund();
+     }
+    
 }
